@@ -66,6 +66,9 @@ void demoDequeOperations() {
   deque.push_front(0);
   cout << "After push_front: 0" << endl;
   deque.print();
+  deque.push_back(6);
+  cout << "After push_back: 6" << endl;
+  deque.print();
   deque.pop_back();
   cout << "After pop_back" << endl;
   deque.print();

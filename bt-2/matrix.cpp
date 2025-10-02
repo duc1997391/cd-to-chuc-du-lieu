@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <iostream>
 #include <stdlib.h>
 using namespace std;
@@ -30,6 +31,7 @@ Matrix::Matrix(int rows, int cols) {
 }
 
 Matrix Matrix::addition(Matrix &other) {
+  // Để cộng 2 ma trận, chúng phải cùng kích thước
   if (rows != other.rows || cols != other.cols) {
     cout << "Error: Matrix dimensions do not match" << endl;
     return Matrix(rows, cols);
@@ -44,6 +46,7 @@ Matrix Matrix::addition(Matrix &other) {
 }
 
 Matrix Matrix::subtraction(Matrix &other) {
+  // Để trừ 2 ma trận, chúng phải cùng kích thước
   if (rows != other.rows || cols != other.cols) {
     cout << "Error: Matrix dimensions do not match" << endl;
     return Matrix(rows, cols);
@@ -77,9 +80,8 @@ Matrix Matrix::transpose() {
   return result;
 }
 
-Matrix Matrix::multiplication(Matrix &other)
-
-{
+Matrix Matrix::multiplication(Matrix &other){
+  // Để nhân 2 ma trận, số cột của ma trận thứ nhất phải bằng số hàng của ma trận thứ hai
   if (cols != other.rows) {
     cout << "Error: Matrix dimensions do not match" << endl;
     return Matrix(0, 0);
@@ -100,7 +102,6 @@ void Matrix::print() {
     cout << "----";
   }
   cout << "+" << endl;
-
   // Print matrix contents with borders
   for (int i = 0; i < rows; i++) {
     cout << "|";
@@ -109,7 +110,6 @@ void Matrix::print() {
     }
     cout << "|" << endl;
   }
-
   // Print bottom border
   cout << "+";
   for (int j = 0; j < cols; j++) {
@@ -127,6 +127,7 @@ void Matrix::seed() {
 }
 
 void demoMatrixOperations() {
+  srand(time(nullptr));
   Matrix matrix1(3, 3);
   matrix1.seed();
   cout << "Matrix 1: " << endl;
