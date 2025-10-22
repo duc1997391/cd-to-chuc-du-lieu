@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/ductm/learning/cd-to-chuc-du-lieu/bt-3/main'
+relocations:     []
+...
