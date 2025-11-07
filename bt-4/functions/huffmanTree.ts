@@ -85,14 +85,14 @@ function makeParent(left: HuffmanNode, right: HuffmanNode): HuffmanNode {
  *  - root: gốc cây Huffman (null nếu file rỗng)
  *  - symbolCount: số symbol thực sự xuất hiện (>0)
  */
-export function buildHuffmanTree(freq: BigUint64Array): {
+export function buildHuffmanTree(freq: Uint32Array): {
   root: HuffmanNode | null;
   symbolCount: number;
 } {
   // Thu thập các lá có tần suất > 0
   const leaves: HuffmanNode[] = [];
   for (let b = 0; b < 256; b++) {
-    if (freq[b] > 0n) leaves.push(makeLeaf(b, freq[b]));
+    if (freq[b] > 0) leaves.push(makeLeaf(b, BigInt(freq[b])));
   }
   const symbolCount = leaves.length;
 
@@ -125,3 +125,39 @@ export function buildHuffmanTree(freq: BigUint64Array): {
 
   return { root: heap.pop(), symbolCount };
 }
+
+function printHuffmanTreeUtil(root: HuffmanNode, prefix = "", isLeft = true) {
+  if (!root)
+    return;
+
+  console.log(`${prefix}${isLeft ? "├── " : "└── "}${root.symbol ?? '_'}:${root.weight}`);
+
+  if (root.left || root.right) {
+    if (root.left) {
+      printHuffmanTreeUtil(root.left, prefix + (isLeft ? "│   " : "    "), true);
+    } else if (root.right) {
+      console.log(prefix + (isLeft ? "│   " : "    ") + "├── " + "null");
+    }
+
+    if (root.right) {
+      printHuffmanTreeUtil(root.right, prefix + (isLeft ? "│   " : "    "), false);
+    }
+  }
+}
+
+export function printHuffmanTree(root: HuffmanNode) {
+  if (!root) {
+    console.log("Empty tree");
+    return;
+  }
+  console.log(`${root.symbol ?? '_'}:${root.weight}`);
+  if (root.left) {
+    printHuffmanTreeUtil(root.left, "", true);
+  } else if (root.right) {
+    console.log("├── null");
+  }
+  if (root.right) {
+    printHuffmanTreeUtil(root.right, "", false);
+  }
+  console.log("--------------------------------");
+};

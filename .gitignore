@@ -1,0 +1,68 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# C++ build artifacts
+*.o
+*.obj
+*.exe
+*.out
+*.a
+*.so
+*.dylib
+*.dll
+
+# C++ executables (compiled binaries)
+main
+program
+mineven
+splay_tree
+link-list
+
+# Debug symbols (macOS)
+*.dSYM/
+*.dSYM
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.pnpm-debug.log
+
+# TypeScript
+*.tsbuildinfo
+dist/
+build/
+*.js.map
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+*.cache
+
+# Compressed/archive files (if not needed in repo)
+*.zip
+*.rar
+*.tar.gz
+*.7z
+
+# Data files (uncomment if you don't want to track data files)
+# *.txt
+# *.csv
+# *.hzip
+
