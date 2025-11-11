@@ -8,11 +8,15 @@
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "typeRoots": ["node_modules/@types"]
   },
   "include": [
     "functions/**/*.ts",
-    "types/**/*.d.ts"
+    "types/**/*.d.ts",
+    "index.ts",
+    "compress.ts",
+    "decompress.ts"
   ]
 }
 

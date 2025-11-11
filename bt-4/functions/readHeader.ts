@@ -37,12 +37,20 @@ export async function parseHzipHeader(path: string): Promise<HzipHeader> {
   if (file.length < off + 8) throw new Error("Invalid HZIP: truncated at originalSize");
   const originalSize = readU64LE(file, off); off += 8;
 
-  // 4) SymbolCount (2B LE)
+  // 4) Extension Length (1B)
+  if (file.length < off + 1) throw new Error("Invalid HZIP: truncated at extension length");
+  const extLen = file[off++];
+
+  // 5) Extension Bytes (extLen bytes)
+  if (file.length < off + extLen) throw new Error("Invalid HZIP: truncated at extension");
+  const originalExtension = file.subarray(off, off + extLen).toString("utf8"); off += extLen;
+
+  // 6) SymbolCount (2B LE)
   if (file.length < off + 2) throw new Error("Invalid HZIP: truncated at symbolCount");
   const symCount = readU16LE(file, off); off += 2;
   if (symCount > 256) throw new Error("Invalid HZIP: symbolCount > 256");
 
-  // 5) Bảng (symbol:1B, codeLen:1B) lặp symCount
+  // 7) Bảng (symbol:1B, codeLen:1B) lặp symCount
   const entries: Array<{ symbol: number; codeLen: number }> = [];
   if (file.length < off + symCount * 2) throw new Error("Invalid HZIP: truncated at table");
   for (let i = 0; i < symCount; i++) {
@@ -54,13 +62,13 @@ export async function parseHzipHeader(path: string): Promise<HzipHeader> {
     entries.push({ symbol, codeLen });
   }
 
-  // 6) PadBits (1B)
+  // 8) PadBits (1B)
   if (file.length < off + 1) throw new Error("Invalid HZIP: missing padBits");
   const padBits = file[off++];
   if (padBits < 0 || padBits > 7) throw new Error(`Invalid padBits=${padBits}`);
 
-  // 7) Payload
+  // 9) Payload
   const payload = file.subarray(off);
 
-  return { magic, version, originalSize, entries, padBits, payload };
+  return { magic, version, originalSize, originalExtension, entries, padBits, payload };
 }

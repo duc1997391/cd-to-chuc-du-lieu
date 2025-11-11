@@ -1,75 +1,107 @@
-import { countByteFrequency } from "./functions/countByteFrequency";
-import { buildHuffmanTree, printHuffmanTree } from "./functions/huffmanTree";
-import { deriveHuffmanCodes } from "./functions/huffmanCodes";
-import { buildCanonicalCodes, rebuildCanonicalFromTable } from "./functions/canonical";
-import { encodePayload } from "./functions/encode";
-import { buildHzipHeaderCanonical } from "./functions/buildHeader";
-import { createWriteStream } from "node:fs";
-import { parseHzipHeader } from "./functions/readHeader";
-import { decodePayloadToFile } from "./functions/decode";
+import { compressFile } from "./compress";
+import { decompressFile } from "./decompress";
+import * as fs from "fs";
+import * as readline from "readline";
+import * as path from "path";
 
-async function compressFile(filePath: string) {
-  const { freq, totalBytes } = await countByteFrequency(filePath);
-  console.log("Total bytes: ", totalBytes);
-  const { root, symbolCount } = buildHuffmanTree(freq);
-  console.log("Symbol count: ", symbolCount);
-  if (root) {
-    printHuffmanTree(root);
-  }
-  const { lengths, codes } = deriveHuffmanCodes(root);
-  console.log("Lengths: ", lengths);
-  codes.forEach((code, index) => {
-    if (code) {
-      console.log(`${index}: ${code.code} ${code.code.toString(2)}, ${code.length}`);
-    }
-  })
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout
+});
 
-  const canonicalCodes = buildCanonicalCodes(lengths);
-  canonicalCodes.forEach((code, index) => {
-    if (code) {
-      console.log(`${index}: ${code.code}, ${code.length}`);
-    }
-  })
-
-  const { payload, padBits, outBytes } = await encodePayload(filePath, canonicalCodes);
-  
-  const header = buildHzipHeaderCanonical(lengths, outBytes, padBits);
-  console.log("Header: ", header);
-
-  // 7) Ghi file .hzip = header + payload (stream để tiết kiệm RAM với payload lớn)
-  const outputPath = filePath.replace(".txt", ".hzip");
-  await new Promise<void>((resolve, reject) => {
-    const ws = createWriteStream(outputPath, { flags: "w" });
-    ws.once("error", reject);
-    ws.write(header, (e) => {
-      if (e) return reject(e);
-      // Ghi payload
-      // const rs = createReadStream(null as any); // placeholder: chúng ta đã có payload trong RAM
-      // Ở đây payload đang là Buffer -> viết trực tiếp
-      ws.write(payload, (e2) => {
-        if (e2) return reject(e2);
-        ws.end(resolve);
-      });
-    });
+function askQuestion(question: string): Promise<string> {
+  return new Promise((resolve) => {
+    rl.question(question, resolve);
   });
-
-  console.log("File compressed successfully, output file: ", outputPath);
-  console.log("Original size: ", totalBytes);
-  console.log("Compressed size: ", payload.length);
-  console.log("Compression ratio: ", ((payload.length / totalBytes) * 100).toFixed(2) + "%");
 }
 
-async function decompressFile(filePath: string) {
-  const { magic, version, originalSize, entries, padBits, payload } = await parseHzipHeader(filePath);
-  console.log("Magic: ", magic);
-  console.log("Version: ", version);
-  console.log("Original size: ", originalSize);
-  console.log("Entries: ", entries);
-  console.log("Pad bits: ", padBits);
-  console.log("Payload: ", payload);
-  const canonicalCodes = rebuildCanonicalFromTable(entries);
-  await decodePayloadToFile(payload, padBits, canonicalCodes, originalSize, filePath.replace(".hzip", "(copy).txt"));
+async function checkFileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.promises.access(filePath, fs.constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-// compressFile("data.txt");
-decompressFile("data.hzip");
+async function showMenu() {
+  console.log("\n=== Huffman File Compression Tool ===");
+  console.log("1. Nén file");
+  console.log("2. Giải nén file");
+  console.log("3. Thoát chương trình");
+  console.log("====================================");
+}
+
+async function handleCompress() {
+  try {
+    const filePath = await askQuestion("Nhập đường dẫn file cần nén: ");
+    const normalizedPath = path.resolve(filePath);
+
+    if (!(await checkFileExists(normalizedPath))) {
+      console.log("❌ Lỗi: Không tìm thấy file '" + filePath + "'");
+      return;
+    }
+
+    await compressFile(normalizedPath);
+  } catch (error) {
+    console.error("❌ Lỗi khi nén file:", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function handleDecompress() {
+  try {
+    const filePath = await askQuestion("Nhập đường dẫn file cần giải nén: ");
+    const normalizedPath = path.resolve(filePath);
+
+    if (!(await checkFileExists(normalizedPath))) {
+      console.log("❌ Lỗi: Không tìm thấy file '" + filePath + "'");
+      return;
+    }
+
+    await decompressFile(normalizedPath);
+  } catch (error) {
+    console.error("❌ Lỗi khi giải nén file:", error instanceof Error ? error.message : String(error));
+  }
+}
+
+async function main() {
+  console.log("🎯 Chào mừng đến với Huffman File Compression Tool!");
+  console.log("Công cụ nén/giải nén file sử dụng thuật toán Huffman");
+
+  let running = true;
+
+  while (running) {
+    await showMenu();
+    const choice = await askQuestion("Chọn chức năng (1-3): ");
+
+    switch (choice.trim()) {
+      case "1":
+        await handleCompress();
+        break;
+      case "2":
+        await handleDecompress();
+        break;
+      case "3":
+        console.log("\n👋 Cảm ơn đã sử dụng Huffman File Compression Tool!");
+        console.log("Chúc bạn một ngày tốt lành!");
+        running = false;
+        break;
+      default:
+        console.log("❌ Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 3.");
+        break;
+    }
+
+    if (running) {
+      console.log("\nNhấn Enter để tiếp tục...");
+      await askQuestion("");
+    }
+  }
+
+  rl.close();
+}
+
+// Chạy chương trình
+main().catch((error) => {
+  console.error("❌ Lỗi không mong muốn:", error);
+  rl.close();
+});

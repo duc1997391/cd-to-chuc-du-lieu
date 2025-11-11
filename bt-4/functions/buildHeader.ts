@@ -5,6 +5,7 @@ export interface HzipHeader {
   magic: string;                // "HZIP"
   version: number;              // 0x01
   originalSize: bigint;         // uint64 LE
+  originalExtension: string;    // extension của file gốc (vd: ".txt", ".pdf")
   entries: Array<{ symbol: number; codeLen: number }>; // length>0
   padBits: number;              // 0..7
   payload: Buffer;              // phần bitstream còn lại của file
@@ -34,12 +35,14 @@ export function u16le(value: number): Buffer {
  * @param lengths Uint8Array[256] độ dài mã (0 nếu không xuất hiện)
  * @param originalSize bigint (tổng byte gốc)
  * @param padBits số bit đệm ở byte cuối payload (0..7)
+ * @param originalExtension extension của file gốc (vd: ".txt", ".pdf")
  * @returns Buffer header
  */
 export function buildHzipHeaderCanonical(
   lengths: Uint8Array,
   originalSize: bigint,
-  padBits: number
+  padBits: number,
+  originalExtension: string
 ): Buffer {
   // Thu các symbol có mặt, theo ASCII tăng dần
   const present: number[] = [];
@@ -48,6 +51,8 @@ export function buildHzipHeaderCanonical(
   const magic = Buffer.from("HZIP", "ascii");        // 4B
   const version = Buffer.from([0x01]);               // 1B
   const sizeBuf = u64le(originalSize);               // 8B
+  const extBytes = Buffer.from(originalExtension, "utf8");
+  const extLen = Buffer.from([extBytes.length & 0xff]); // 1B, max 255 chars
   const symCount = u16le(present.length);            // 2B
   const padBuf = Buffer.from([padBits & 0x07]);      // 1B
 
@@ -59,6 +64,6 @@ export function buildHzipHeaderCanonical(
     table[i * 2 + 1] = lengths[sym]; // code length
   }
 
-  // header = magic + version + size + symCount + table + padBits
-  return Buffer.concat([magic, version, sizeBuf, symCount, table, padBuf]);
+  // header = magic + version + size + extLen + extBytes + symCount + table + padBits
+  return Buffer.concat([magic, version, sizeBuf, extLen, extBytes, symCount, table, padBuf]);
 }

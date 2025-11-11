@@ -71,6 +71,7 @@ export class BitReader {
       ? 8 // initial state (0x80)
       : 8 - Math.clz32(this.bitMask) + 24; // not needed, kept for clarity
 
+
     // Lấy bit
     const bit = (this.payload[this.i] & this.bitMask) ? 1 : 0;
 
@@ -88,12 +89,20 @@ export class BitReader {
             // đang bước vào vùng đệm → không nên đọc nữa
             return null;
           }
+        } else {
+          // padBits = 0, toàn bộ byte đều hữu ích
+          // Đã trả về bit cuối của byte cuối, bây giờ không còn bit nào nữa
+          // Vẫn return bit hiện tại, BitReader sẽ return null ở lần gọi tiếp theo
         }
+      } else {
+        // sang byte kế
+        this.i++;
+        if (this.i > this.lastIndex) {
+          console.log(`DEBUG BitReader: Exceeded lastIndex, returning null`);
+          return null;
+        }
+        this.bitMask = 0x80;
       }
-      // sang byte kế
-      this.i++;
-      if (this.i > this.lastIndex) return null;
-      this.bitMask = 0x80;
     }
     // Trường hợp vào vùng đệm ở byte cuối
     if (this.i === this.lastIndex && this.bitMask === (0x80 >> (8 - this.lastBytePad))) {
