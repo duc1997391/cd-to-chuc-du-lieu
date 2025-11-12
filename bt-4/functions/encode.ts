@@ -1,54 +1,73 @@
-// encode.ts
 import * as fs from "node:fs";
 import { BitWriter } from "./bitIO";
 import type { HuffmanCode } from "./huffmanCodes";
 
 /**
- * Đóng gói dữ liệu nén (payload) bằng mã Huffman canonical.
- * @param inputPath đường dẫn file gốc
- * @param codes mảng 256 phần tử; codes[b] = {code,length} nếu byte b xuất hiện, hoặc null nếu không
- * @returns { payload: Buffer; padBits: number; outBytes: bigint } 
- *          payload: dữ liệu nhị phân đã pack bit
- *          padBits: số bit đệm ở byte cuối (0..7)
- *          outBytes: tổng số byte gốc đã nén (để ghi vào header làm OriginalSize)
+ * Mã hóa file thành payload nén sử dụng mã Huffman canonical
+ *
+ * Quá trình:
+ * 1. Đọc file theo stream để xử lý file lớn
+ * 2. Với mỗi byte, tra cứu mã Huffman tương ứng
+ * 3. Ghi mã Huffman vào bit stream
+ * 4. Trả về payload đã nén và thông tin padding
+ *
+ * @param inputPath Đường dẫn file cần nén
+ * @param codes Mảng 256 mã Huffman canonical (null nếu byte không xuất hiện)
+ * @returns Object chứa payload nén, số bit padding, và tổng số byte gốc
  */
 export async function encodePayload(
   inputPath: string,
-  codes: Array<HuffmanNodeCodeOrNull>
+  codes: Array<HuffmanCode | null>
 ): Promise<{ payload: Buffer; padBits: number; outBytes: bigint }> {
-  const writer = new BitWriter();
-  let total: bigint = 0n;
+  const bitWriter = new BitWriter();
+  let totalBytesProcessed = 0n;
 
+  // Xử lý file theo stream để tiết kiệm bộ nhớ với file lớn
   await new Promise<void>((resolve, reject) => {
-    const stream = fs.createReadStream(inputPath);
-    stream.on("data", (chunk) => {
-      if (!Buffer.isBuffer(chunk)) {
-        reject(new Error("Expected Buffer chunk but got string"));
+    const fileStream = fs.createReadStream(inputPath);
+
+    fileStream.on("data", (dataChunk) => {
+      // Kiểm tra kiểu dữ liệu chunk
+      if (!Buffer.isBuffer(dataChunk)) {
+        reject(new Error("Dữ liệu chunk phải là Buffer"));
         return;
       }
-      for (let i = 0; i < chunk.length; i++) {
-        const b = chunk[i]; // 0..255
-        total += 1n;
 
-        const c = codes[b];
-        if (!c || c.length === 0) {
+      // Xử lý từng byte trong chunk
+      for (let byteIndex = 0; byteIndex < dataChunk.length; byteIndex++) {
+        const byteValue = dataChunk[byteIndex]; // Giá trị byte 0-255
+        totalBytesProcessed += 1n;
+
+        // Tra cứu mã Huffman cho byte này
+        const huffmanCode = codes[byteValue];
+        if (!huffmanCode || huffmanCode.length === 0) {
           reject(
             new Error(
-              `Byte 0x${b.toString(16)} xuất hiện trong dữ liệu nhưng không có mã canonical (length=0)`
+              `Byte 0x${byteValue.toString(16)} không có mã Huffman canonical`
             )
           );
           return;
         }
-        writer.writeBits(c.code, c.length);
+
+        // Ghi mã Huffman vào bit stream
+        bitWriter.writeBits(huffmanCode.code, huffmanCode.length);
       }
     });
-    stream.on("end", () => resolve());
-    stream.on("error", reject);
+
+    fileStream.on("end", () => resolve());
+    fileStream.on("error", reject);
   });
 
-  const { payload, padBits } = writer.finish();
-  return { payload, padBits, outBytes: total };
+  // Hoàn thành việc ghi bit và lấy kết quả
+  const { payload, padBits } = bitWriter.finish();
+  return {
+    payload,
+    padBits,
+    outBytes: totalBytesProcessed
+  };
 }
 
-// Re-export type alias để tiện dùng nơi khác
-export type HuffmanNodeCodeOrNull = HuffmanCode | null;
+/**
+ * Type alias cho mã Huffman hoặc null
+ */
+export type HuffmanCodeOrNull = HuffmanCode | null;

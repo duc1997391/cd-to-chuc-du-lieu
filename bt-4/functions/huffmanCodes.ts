@@ -1,70 +1,78 @@
-// huffmanCodes.ts
-// Bước 3: Tạo mã từ cây Huffman (trái = 0, phải = 1)
-// Yêu cầu: dùng chung interface HuffmanNode của bước 2
-
 import type { HuffmanNode } from "./huffmanTree";
 
+/**
+ * Interface cho mã Huffman
+ */
 export interface HuffmanCode {
-  code: bigint;   // bit pattern, lưu ở phần LSB, dài = length bit
-  length: number; // số bit hợp lệ trong 'code'
+  code: bigint;   // Mẫu bit nhị phân, lưu ở phần LSB, dài = length bit
+  length: number; // Số bit hợp lệ trong 'code'
 }
 
 /**
- * Duyệt cây Huffman để sinh:
- *  - lengths[0..255]: độ dài mã của từng byte (0 nếu byte không xuất hiện)
- *  - codes[0..255]:   mã nhị phân thô (BigInt) và độ dài tương ứng
+ * Tạo bảng mã Huffman từ cây Huffman bằng cách duyệt DFS
  *
- * Quy tắc gán mã thô:
- *   - bắt đầu từ root với (code=0n, len=0)
- *   - đi trái:  code = (code << 1n) | 0n
- *   - đi phải:  code = (code << 1n) | 1n
- *   - tới lá:   gán {code, length} cho symbol của lá
+ * Quy tắc gán mã:
+ * - Bắt đầu từ root với code=0, length=0
+ * - Đi trái: thêm bit 0 (code << 1 | 0)
+ * - Đi phải: thêm bit 1 (code << 1 | 1)
+ * - Đến lá: gán code và length cho byte tương ứng
  *
- * Trường hợp đặc biệt:
- *   - Nếu cây chỉ có 1 lá: đặt length=1, code=0n (một bit 0 cho tất cả các byte)
+ * @param root Gốc của cây Huffman
+ * @returns Object chứa mảng lengths và codes cho 256 byte
  */
 export function deriveHuffmanCodes(root: HuffmanNode | null): {
-  lengths: Uint8Array;          // size 256
-  codes: Array<HuffmanCode|null>; // size 256
+  lengths: Uint8Array;          // Mảng độ dài mã cho 256 byte
+  codes: Array<HuffmanCode|null>; // Mảng mã Huffman cho 256 byte
 } {
-  const ALPHABET = 256;
-  const lengths = new Uint8Array(ALPHABET);
-  const codes: Array<HuffmanCode | null> = new Array(ALPHABET).fill(null);
+  const BYTE_RANGE = 256; // Số lượng byte có thể có (0-255)
+  const lengths = new Uint8Array(BYTE_RANGE);
+  const codes: Array<HuffmanCode | null> = new Array(BYTE_RANGE).fill(null);
 
   if (!root) {
-    // File rỗng: không có symbol nào
+    // Trường hợp file rỗng: không có symbol nào
     return { lengths, codes };
   }
 
-  // Trường hợp chỉ có 1 symbol (root là lá)
+  // Trường hợp đặc biệt: chỉ có 1 symbol (cây chỉ có 1 nút lá)
   if (root.symbol !== null) {
     lengths[root.symbol] = 1;
     codes[root.symbol] = { code: 0n, length: 1 };
     return { lengths, codes };
   }
 
-  // Duyệt DFS không đệ quy để an toàn với cây sâu
-  type Frame = { node: HuffmanNode; code: bigint; len: number };
-  const stack: Frame[] = [{ node: root, code: 0n, len: 0 }];
+  // Duyệt cây theo chiều sâu (DFS) không đệ quy để tránh stack overflow với cây sâu
+  // Mỗi frame chứa: nút hiện tại, mã hiện tại, độ dài mã hiện tại
+  type TraversalFrame = { node: HuffmanNode; code: bigint; length: number };
+  const stack: TraversalFrame[] = [{ node: root, code: 0n, length: 0 }];
 
-  while (stack.length) {
-    const { node, code, len } = stack.pop()!;
+  while (stack.length > 0) {
+    const currentFrame = stack.pop()!;
+    const { node, code, length: currentLength } = currentFrame;
 
     if (node.symbol !== null) {
-      // Nút lá: gán mã & độ dài
-      lengths[node.symbol] = len;
-      codes[node.symbol] = { code, length: len };
+      // Đã đến nút lá: gán mã Huffman và độ dài cho byte tương ứng
+      lengths[node.symbol] = currentLength;
+      codes[node.symbol] = { code, length: currentLength };
       continue;
     }
 
-    // Duyệt phải sau cùng để trái (0) được xử lý trước nếu muốn giữ thứ tự trực quan
+    // Đẩy nút phải vào stack trước, nút trái sau để nút trái được xử lý trước
+    // (vì stack là LIFO - Last In First Out)
     if (node.right) {
-      // đi phải => thêm bit 1
-      stack.push({ node: node.right, code: (code << 1n) | 1n, len: len + 1 });
+      // Đi phải: thêm bit 1 vào mã hiện tại
+      stack.push({
+        node: node.right,
+        code: (code << 1n) | 1n,
+        length: currentLength + 1
+      });
     }
     if (node.left) {
-      // đi trái => thêm bit 0
-      stack.push({ node: node.left,  code: (code << 1n) | 0n, len: len + 1 });
+      // Đi trái: thêm bit 0 vào mã hiện tại
+      stack.push({
+        node: node.left,
+        code: (code << 1n) | 0n,
+        length: currentLength + 1
+      });
     }
   }
 

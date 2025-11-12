@@ -1,74 +1,135 @@
-// header.ts
 import fs from "fs/promises";
 import type { HzipHeader } from "./buildHeader";
 
-/** Đọc uint64 little-endian → bigint */
-function readU64LE(buf: Buffer, off: number): bigint {
-  let v = 0n;
-  let shift = 0n;
-  for (let i = 0; i < 8; i++) {
-    v |= BigInt(buf[off + i]) << shift;
-    shift += 8n;
+/**
+ * Đọc giá trị 64-bit không dấu từ Buffer theo định dạng Little-Endian
+ * @param buffer Buffer chứa dữ liệu
+ * @param offset Vị trí bắt đầu đọc trong buffer
+ * @returns Giá trị bigint được đọc
+ */
+function readUint64LE(buffer: Buffer, offset: number): bigint {
+  let result = 0n;
+  let bitShift = 0n;
+
+  // Đọc từng byte và dịch bit (Little-Endian: byte thấp trước)
+  for (let byteIndex = 0; byteIndex < 8; byteIndex++) {
+    result |= BigInt(buffer[offset + byteIndex]) << bitShift;
+    bitShift += 8n;
   }
-  return v;
+
+  return result;
 }
 
-/** Đọc uint16 little-endian → number */
-function readU16LE(buf: Buffer, off: number): number {
-  return buf[off] | (buf[off + 1] << 8);
+/**
+ * Đọc giá trị 16-bit không dấu từ Buffer theo định dạng Little-Endian
+ * @param buffer Buffer chứa dữ liệu
+ * @param offset Vị trí bắt đầu đọc trong buffer
+ * @returns Giá trị số được đọc
+ */
+function readUint16LE(buffer: Buffer, offset: number): number {
+  // Byte thấp (LSB) + byte cao dịch trái 8 bit (MSB)
+  return buffer[offset] | (buffer[offset + 1] << 8);
 }
 
-/** Parse file .hzip thành cấu trúc header + payload */
-export async function parseHzipHeader(path: string): Promise<HzipHeader> {
-  const file = await fs.readFile(path);
-  let off = 0;
+/**
+ * Phân tích header của file HZIP và tách payload
+ *
+ * Đọc tuần tự các trường trong header theo format đã định nghĩa
+ * và trả về cấu trúc HzipHeader chứa tất cả thông tin metadata
+ *
+ * @param filePath Đường dẫn đến file HZIP cần phân tích
+ * @returns Promise chứa cấu trúc header đã được parse
+ */
+export async function parseHzipHeader(filePath: string): Promise<HzipHeader> {
+  // Đọc toàn bộ file vào buffer
+  const fileBuffer = await fs.readFile(filePath);
+  let currentOffset = 0;
 
-  // 1) Magic
-  if (file.length < 4) throw new Error("Invalid HZIP: too short");
-  const magic = file.subarray(off, off + 4).toString("ascii"); off += 4;
-  if (magic !== "HZIP") throw new Error("Invalid HZIP: magic mismatch");
+  // Bước 1: Đọc magic string (4 bytes)
+  if (fileBuffer.length < 4) {
+    throw new Error("File HZIP không hợp lệ: quá ngắn");
+  }
+  const magicString = fileBuffer.subarray(currentOffset, currentOffset + 4).toString("ascii");
+  currentOffset += 4;
+  if (magicString !== "HZIP") {
+    throw new Error("File không phải định dạng HZIP");
+  }
 
-  // 2) Version
-  if (file.length < off + 1) throw new Error("Invalid HZIP: truncated at version");
-  const version = file[off++]; 
-  if (version !== 0x01) throw new Error(`Unsupported HZIP version: ${version}`);
+  // Bước 2: Đọc version (1 byte)
+  if (fileBuffer.length < currentOffset + 1) {
+    throw new Error("File HZIP bị cắt ngang tại phần version");
+  }
+  const formatVersion = fileBuffer[currentOffset++];
+  if (formatVersion !== 0x01) {
+    throw new Error(`Phiên bản HZIP không được hỗ trợ: ${formatVersion}`);
+  }
 
-  // 3) OriginalSize (8B LE)
-  if (file.length < off + 8) throw new Error("Invalid HZIP: truncated at originalSize");
-  const originalSize = readU64LE(file, off); off += 8;
+  // Bước 3: Đọc kích thước file gốc (8 bytes, little-endian)
+  if (fileBuffer.length < currentOffset + 8) {
+    throw new Error("File HZIP bị cắt ngang tại phần kích thước gốc");
+  }
+  const originalFileSize = readUint64LE(fileBuffer, currentOffset);
+  currentOffset += 8;
 
-  // 4) Extension Length (1B)
-  if (file.length < off + 1) throw new Error("Invalid HZIP: truncated at extension length");
-  const extLen = file[off++];
+  // Bước 4: Đọc độ dài extension (1 byte)
+  if (fileBuffer.length < currentOffset + 1) {
+    throw new Error("File HZIP bị cắt ngang tại phần độ dài extension");
+  }
+  const extensionLength = fileBuffer[currentOffset++];
 
-  // 5) Extension Bytes (extLen bytes)
-  if (file.length < off + extLen) throw new Error("Invalid HZIP: truncated at extension");
-  const originalExtension = file.subarray(off, off + extLen).toString("utf8"); off += extLen;
+  // Bước 5: Đọc tên extension (extensionLength bytes)
+  if (fileBuffer.length < currentOffset + extensionLength) {
+    throw new Error("File HZIP bị cắt ngang tại phần extension");
+  }
+  const originalExtension = fileBuffer.subarray(currentOffset, currentOffset + extensionLength).toString("utf8");
+  currentOffset += extensionLength;
 
-  // 6) SymbolCount (2B LE)
-  if (file.length < off + 2) throw new Error("Invalid HZIP: truncated at symbolCount");
-  const symCount = readU16LE(file, off); off += 2;
-  if (symCount > 256) throw new Error("Invalid HZIP: symbolCount > 256");
+  // Bước 6: Đọc số lượng symbol (2 bytes, little-endian)
+  if (fileBuffer.length < currentOffset + 2) {
+    throw new Error("File HZIP bị cắt ngang tại phần số lượng symbol");
+  }
+  const symbolCount = readUint16LE(fileBuffer, currentOffset);
+  currentOffset += 2;
+  if (symbolCount > 256) {
+    throw new Error("File HZIP không hợp lệ: số lượng symbol > 256");
+  }
 
-  // 7) Bảng (symbol:1B, codeLen:1B) lặp symCount
-  const entries: Array<{ symbol: number; codeLen: number }> = [];
-  if (file.length < off + symCount * 2) throw new Error("Invalid HZIP: truncated at table");
-  for (let i = 0; i < symCount; i++) {
-    const symbol = file[off++];
-    const codeLen = file[off++];
-    if (codeLen <= 0 || codeLen > 64) { // ngưỡng an toàn, tuỳ bạn chỉnh
-      throw new Error(`Invalid codeLen ${codeLen} for symbol ${symbol}`);
+  // Bước 7: Đọc bảng Huffman (symbol + codeLen cho mỗi symbol)
+  const huffmanEntries: Array<{ symbol: number; codeLen: number }> = [];
+  if (fileBuffer.length < currentOffset + symbolCount * 2) {
+    throw new Error("File HZIP bị cắt ngang tại bảng Huffman");
+  }
+  for (let entryIndex = 0; entryIndex < symbolCount; entryIndex++) {
+    const symbol = fileBuffer[currentOffset++];
+    const codeLength = fileBuffer[currentOffset++];
+
+    // Validate độ dài mã (phải > 0 và không quá 64 bit)
+    if (codeLength <= 0 || codeLength > 64) {
+      throw new Error(`Độ dài mã không hợp lệ ${codeLength} cho byte ${symbol}`);
     }
-    entries.push({ symbol, codeLen });
+
+    huffmanEntries.push({ symbol, codeLen: codeLength });
   }
 
-  // 8) PadBits (1B)
-  if (file.length < off + 1) throw new Error("Invalid HZIP: missing padBits");
-  const padBits = file[off++];
-  if (padBits < 0 || padBits > 7) throw new Error(`Invalid padBits=${padBits}`);
+  // Bước 8: Đọc số bit padding (1 byte)
+  if (fileBuffer.length < currentOffset + 1) {
+    throw new Error("File HZIP thiếu thông tin padding bits");
+  }
+  const paddingBits = fileBuffer[currentOffset++];
+  if (paddingBits < 0 || paddingBits > 7) {
+    throw new Error(`Số bit padding không hợp lệ: ${paddingBits}`);
+  }
 
-  // 9) Payload
-  const payload = file.subarray(off);
+  // Bước 9: Phần còn lại là payload (dữ liệu nén)
+  const compressedPayload = fileBuffer.subarray(currentOffset);
 
-  return { magic, version, originalSize, originalExtension, entries, padBits, payload };
+  return {
+    magic: magicString,
+    version: formatVersion,
+    originalSize: originalFileSize,
+    originalExtension,
+    entries: huffmanEntries,
+    padBits: paddingBits,
+    payload: compressedPayload
+  };
 }
