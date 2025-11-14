@@ -8,9 +8,6 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   },
-  "dependencies": {
-    "canvas": "^2.11.2"
-  },
   "scripts": {
     "start": "ts-node index.ts"
   }
