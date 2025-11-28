@@ -5,7 +5,7 @@
             "name": "C++ Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/bt-3/main",
+            "program": "${workspaceFolder}/on-tap/main",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

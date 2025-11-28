@@ -66,3 +66,4 @@ build/
 # *.csv
 # *.hzip
 
+*.DS_Store
